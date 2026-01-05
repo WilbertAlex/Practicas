@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mensajeria Instantanea</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: system-ui, sans-serif;
+            display: grid;
+            place-content: center;
+            height: 100vh;
+            padding: 20px;
+            background: #0a0a0a;
+            color: #fff;
+        }
+
+        #chat {
+            border: 1px solid #333;
+            border-radius: 8px;
+            overflow: hidden;
+            width: 450px;
+            max-width: 100%;
+            height: 600px;
+            max-height: 80vh;
+            background: #1a1a1a;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #chat-header {
+            background: #0066cc;
+            padding: 15px;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        #username-display {
+            font-size: 12px;
+            opacity: 0.8;
+            margin-top: 5px;
+        }
+
+        #messages {
+            list-style: none;
+            margin: 0;
+            padding: 15px;
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        #messages li {
+            padding: 10px;
+            margin-bottom: 8px;
+            border-radius: 6px;
+            background: #252525;
+        }
+
+        #messages li p {
+            margin: 0 0 5px 0;
+            word-wrap: break-word;
+        }
+
+        #messages li small {
+            color: #0066cc;
+            font-size: 12px;
+        }
+
+        #form {
+            display: flex;
+            padding: 15px;
+            background: #252525;
+            border-top: 1px solid #333;
+            gap: 8px;
+        }
+
+        #input {
+            flex: 1;
+            padding: 10px 15px;
+            border: 1px solid #444;
+            border-radius: 20px;
+            background: #1a1a1a;
+            color: #fff;
+            font-size: 14px;
+        }
+
+        #input:focus {
+            outline: none;
+            border-color: #0066cc;
+        }
+
+        button {
+            padding: 10px 20px;
+            background: #0066cc;
+            color: white;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        button:hover {
+            background: #0052a3;
+        }
+
+        button:disabled {
+            background: #555;
+            cursor: not-allowed;
+        }
+
+        #status {
+            padding: 5px 10px;
+            font-size: 11px;
+            text-align: center;
+            background: #2d2d2d;
+        }
+
+        .connected {
+            color: #00ff00;
+        }
+
+        .disconnected {
+            color: #ff0000;
+        }
+    </style>
+</head>
+<body>
+    <section id="chat">
+        <div id="chat-header">
+            Mensajeria Instantanea
+            <div id="username-display"></div>
+        </div>
+        <div id="status" class="disconnected">Desconectado</div>
+        <ul id="messages"></ul>
+        <form id="form">
+            <input type="text" id="input" placeholder="Escribe un mensaje..." autocomplete="off" />
+            <button type="submit" id="send-btn">Enviar</button>
+        </form>
+    </section>
+
+    <script type="module">
+        import { io } from 'https://cdn.socket.io/4.3.2/socket.io.esm.min.js'
+
+        const getUsername = async () => {
+            let username = localStorage.getItem('username')
+            if (username) {
+                console.log('Usuario existente:', username)
+                return username
+            }
+
+            try {
+                const res = await fetch('https://random-data-api.com/api/users/random_user')
+                const data = await res.json()
+                username = data.username
+            } catch (error) {
+                console.error('Error obteniendo username:', error)
+                username = 'user_' + Math.random().toString(36).substr(2, 9)
+            }
+
+            localStorage.setItem('username', username)
+            console.log('Nuevo usuario:', username)
+            return username
+        }
+
+        const myUsername = await getUsername()
+        document.getElementById('username-display').textContent = `Usuario: ${myUsername}`
+
+        const socket = io({
+            auth: {
+                username: myUsername,
+                serverOffset: 0
+            }
+        })
+
+        const form = document.getElementById('form')
+        const input = document.getElementById('input')
+        const messages = document.getElementById('messages')
+        const status = document.getElementById('status')
+        const sendBtn = document.getElementById('send-btn')
+
+        socket.on('connect', () => {
+            console.log('Conectado al servidor')
+            status.textContent = 'Conectado'
+            status.className = 'connected'
+            sendBtn.disabled = false
+        })
+
+        socket.on('disconnect', () => {
+            console.log('Desconectado del servidor')
+            status.textContent = 'Desconectado'
+            status.className = 'disconnected'
+            sendBtn.disabled = true
+        })
+
+        socket.on('chat message', (msg, serverOffset, username) => {
+            console.log('Mensaje recibido:', msg, 'de', username)
+            
+            const li = document.createElement('li')
+            const p = document.createElement('p')
+            const small = document.createElement('small')
+            
+            p.textContent = msg
+            small.textContent = username
+            
+            li.appendChild(p)
+            li.appendChild(small)
+            messages.appendChild(li)
+            
+            socket.auth.serverOffset = serverOffset
+            messages.scrollTop = messages.scrollHeight
+        })
+
+        socket.on('chat error', (error) => {
+            console.error('Error del chat:', error)
+            alert('Error: ' + error)
+        })
+
+        form.addEventListener('submit', (e) => {
+            e.preventDefault()
+            
+            const msg = input.value.trim()
+            if (!msg) return
+            
+            console.log('Enviando mensaje:', msg)
+            socket.emit('chat message', msg)
+            input.value = ''
+        })
+    </script>
+</body>
+</html>
