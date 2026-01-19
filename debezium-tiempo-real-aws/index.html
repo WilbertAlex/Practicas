@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>CDC Users</title>
+  <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+  <h1>Usuarios en Tiempo Real</h1>
+  <p id="status">Conectando...</p>
+  <ul id="users"></ul>
+
+  <script>
+    const socket = io();
+    const users = {};
+
+    socket.on("connect", () => {
+      document.getElementById("status").textContent = "✓ Conectado";
+    });
+
+    socket.on("disconnect", () => {
+      document.getElementById("status").textContent = "✗ Desconectado";
+    });
+
+    socket.on("user-change", (event) => {
+      if (event.after) {
+        users[event.after.id] = event.after;
+      } else if (event.op === "d" && event.before) {
+        delete users[event.before.id];
+      }
+      render();
+    });
+
+    function render() {
+      const list = document.getElementById("users");
+      list.innerHTML = Object.values(users)
+        .sort((a, b) => a.id - b.id)
+        .map(u => `<li>ID: ${u.id} | ${u.nombre} | Estado: ${u.estado}`)
+        .join("");
+    }
+  </script>
+</body>
+</html>
